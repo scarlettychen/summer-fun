@@ -10,16 +10,8 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-/**
- * Hardware names + leave-alone Pedro correction. Path cruise is tuned in {@link RobotModel}
- * (kS/kV/kA, mass, accel limits) — do not retune these PID gains for normal autos.
- */
 public class RobotConfiguration {
 
-    /**
-     * Light correction-only gains. Model feedforward owns drive power when
-     * {@code follower.setMotionModel(...)} is set (always, via PedroGuide).
-     */
     public FollowerConstants createFollowerConstants() {
         return new FollowerConstants()
                 .mass(12.0)
@@ -52,7 +44,6 @@ public class RobotConfiguration {
                 .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
     }
 
-    /** Primary tuning surface for path following. */
     public RobotModel createRobotModel() {
         return new RobotModel()
                 .mass(12.0)

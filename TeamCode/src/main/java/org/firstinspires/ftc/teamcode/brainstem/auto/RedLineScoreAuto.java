@@ -2,24 +2,15 @@ package org.firstinspires.ftc.teamcode.brainstem.auto;
 
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.ivy.Command;
-import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.ivy.groups.Groups;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
-import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 import org.firstinspires.ftc.teamcode.brainstem.FieldCoords;
-import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Limelight;
-import org.firstinspires.ftc.teamcode.brainstem.subsystems.Transfer;
 
-/**
- * Red line score. Poses are {@link FieldCoords}: 0° = into field from −Y wall (+Y), CCW+.
- * Use {@code driveTo} (not {@code lineTo}) when the heading in the pose array must be applied.
- */
 @Configurable
 @Autonomous(name = "Red Line Score", group = "Auto")
-public class RedLineScoreAuto extends LinearOpMode {
+public class RedLineScoreAuto extends CommandAutoOpMode {
 
     public static double[] START = FieldCoords.xyz(-24, -72 + 9, 0);
     public static double[] GOAL = FieldCoords.xyz(-20, 20, 0);
@@ -27,75 +18,50 @@ public class RedLineScoreAuto extends LinearOpMode {
     public static double STRAFE_LEFT_IN = 1.5;
 
     @Override
-    public void runOpMode() {
-        BrainSTEMRobot robot = new BrainSTEMRobot(hardwareMap, telemetry, this);
-        robot.setAlliance(true);
-        robot.setStartPose(START);
+    protected boolean isRed() {
+        return true;
+    }
 
-        PathFollower drive = robot.createPathFollower();
+    @Override
+    protected double[] startPose() {
+        return START;
+    }
 
-        robot.blocker.setDown();
-        robot.transfer.setTransferState(Transfer.TransferState.OFF);
-
-        Command auto = Groups.sequential(
-                OpmodeCommands.closeBlocker(robot.blocker),
+    @Override
+    protected Command buildAuto() {
+        return Groups.sequential(
                 Groups.parallel(
                         OpmodeCommands.lineTo(drive, GOAL),
                         OpmodeCommands.setLiftHigh(robot.lift)
                 ),
                 OpmodeCommands.strafeLeft(drive, STRAFE_LEFT_IN),
-                OpmodeCommands.turnOnTransferAndOpenBlocker(robot.transfer, robot.blocker, robot.intake),
+                OpmodeCommands.reverseIntake(robot.intake),
                 Groups.parallel(
                         OpmodeCommands.driveTo(drive, BALLS),
-                        OpmodeCommands.resetAndCollect(
-                                robot.intake, robot.transfer, robot.lift, robot.blocker)
+                        OpmodeCommands.resetAndCollect(robot.intake, robot.lift)
                 ),
                 OpmodeCommands.collectBallsThenBackOff(
-                        drive, robot.limelight, robot.intake, robot.transfer,
-                        robot.intakeGate, true, 5, Limelight.COLLECT_BACK_OFF_IN, 10)
+                        drive, robot.limelight, robot.intake, Limelight.COLLECT_BACK_OFF_IN, 10)
         );
+    }
 
+    @Override
+    protected void addInitTelemetry() {
         telemetry.addLine("Red Line Score");
         telemetry.addLine("FieldCoords: 0°=+Y (into field)  CCW+  walls±72");
         telemetry.addData("start", FieldCoords.format(START));
         telemetry.addData("goal", FieldCoords.format(GOAL));
         telemetry.addData("balls", FieldCoords.format(BALLS));
         telemetry.addData("strafe left in", STRAFE_LEFT_IN);
-        telemetry.update();
+        telemetry.addData("field now", FieldCoords.format(robot.getFieldPose()));
+    }
 
-        for (int i = 0; i < 10 && opModeInInit(); i++) {
-            robot.update();
-            telemetry.addData("field now", FieldCoords.format(robot.getFieldPose()));
-            telemetry.update();
-            sleep(50);
-        }
-
-        waitForStart();
-        if (isStopRequested()) return;
-
-        robot.setStartPose(START);
-        robot.update();
-
-        Scheduler.reset();
-        Scheduler.schedule(auto);
-
-        while (opModeIsActive() && Scheduler.isScheduled(auto)) {
-            robot.update();
-            Scheduler.execute();
-
-            double[] field = robot.getFieldPose();
-            telemetry.addData("field", FieldCoords.format(field));
-            telemetry.addData("balls tgt", FieldCoords.format(BALLS));
-            telemetry.addData("lift", "%s pos=%d atTarget=%s",
-                    robot.lift.getState(), robot.lift.getPosition(), robot.lift.atTarget());
-            telemetry.addData("balls in robot", OpmodeCommands.getEstimatedBallsInRobot());
-            robot.intakeGate.addTelemetry();
-            telemetry.addData("busy", drive.isBusy());
-            telemetry.update();
-        }
-
-        Scheduler.reset();
-        drive.cancel();
-        robot.drive.setMotorPowers(0, 0, 0, 0);
+    @Override
+    protected void addRunTelemetry() {
+        telemetry.addData("field", FieldCoords.format(robot.getFieldPose()));
+        telemetry.addData("balls tgt", FieldCoords.format(BALLS));
+        telemetry.addData("lift", "%s pos=%d atTarget=%s",
+                robot.lift.getState(), robot.lift.getPosition(), robot.lift.atTarget());
+        telemetry.addData("busy", drive.isBusy());
     }
 }

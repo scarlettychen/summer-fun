@@ -13,12 +13,10 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.brainstem.utils.HardwareNames;
 
-
 @Configurable
 public class Intake implements Component {
     private final Telemetry telemetry;
     private final DcMotorEx motor;
-
 
     public enum IntakeState {
         OFF,
@@ -47,7 +45,6 @@ public class Intake implements Component {
     public void reset() {
 
     }
-
 
     @Override
     public void update() {

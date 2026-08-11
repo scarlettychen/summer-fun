@@ -11,10 +11,6 @@ import com.pedropathing.paths.PathChain;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Converts library-neutral {@link PathSpec} into Pedro {@link PathChain}.
- * Only classes inside follower/ should call this.
- */
 final class PathSpecConverter {
 
     private PathSpecConverter() {}
@@ -25,7 +21,7 @@ final class PathSpecConverter {
         }
 
         PathBuilder builder = follower.pathBuilder();
-        // Pedro radians — used for HOLD_START across segments
+
         double segmentStartHeading = follower.getPose().getHeading();
 
         for (PathSpec.Segment segment : spec.segments) {
@@ -51,7 +47,6 @@ final class PathSpecConverter {
         return builder.build();
     }
 
-    /** @return Pedro heading radians to use as HOLD_START for the next segment */
     private static double applyHeading(
             Path path,
             PathSpec.Segment segment,
@@ -59,7 +54,7 @@ final class PathSpecConverter {
         switch (segment.headingMode) {
             case TANGENT:
                 path.setTangentHeadingInterpolation();
-                // next HOLD_START falls back to previous start heading
+
                 return segmentStartHeadingPedro;
             case HOLD: {
                 Double holdDeg = null;

@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.brainstem.utils;
 
-
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
@@ -29,4 +28,3 @@ public class BatteryVoltageFilter {
         return voltage;
     }
 }
-

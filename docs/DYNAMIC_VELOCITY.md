@@ -137,21 +137,28 @@ Tune via SysId OpModes, then `RobotConfiguration.createRobotModel()`.
 
 ## Telemetry (`FollowerOutput`)
 
+`PathFollower.update()` returns this each tick; `pathCompletion`/`crossTrackError`
+come straight from Pedro, the other two from `VelocityConstraint`:
+
 | Field | Meaning |
 |-------|---------|
+| `pathCompletion` | 0–1 fraction of the current path chain done |
+| `crossTrackError` | Magnitude of Pedro's translational error (inches) |
 | `velocityLimit` | Active ceiling from `VelocityConstraint` |
 | `curvatureLimitReason` | `ROBOT_TOP_SPEED` / `CURVATURE` / `SEGMENT_CAP` |
-| `velocityReference` | End-of-path profiled target this tick |
-| `accelerationReference` | Tangential accel target this tick |
-| `curvature` | Signed κ (1/in) |
 
 ---
 
 ## Self-check examples
 
-Run `VelocityConstraintExamples.runSelfCheck()` (throws if expectations fail):
+Run the **Path Follower Self-Check** TeleOp (`SysId` group), or call
+`VelocityConstraintExamples.runSelfCheck()` directly (throws if expectations fail):
 
 1. Straight line → ≈ robot top speed, reason `ROBOT_TOP_SPEED`  
 2. Tight Bezier κ → lower speed, reason `CURVATURE`  
 3. Segment cap → never above cap, reason `SEGMENT_CAP` when binding  
 4. Different `RobotModel` friction / top speed → different limits on same κ  
+
+The same OpMode also runs `PathPlannerImportExamples.runSelfCheck()`, which exercises
+the JSON planner import path: unit conversion, corner vs. center origin, and
+cubic/quadratic handle construction.

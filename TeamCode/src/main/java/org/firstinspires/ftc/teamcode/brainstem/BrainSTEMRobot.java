@@ -10,22 +10,19 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollower;
-import org.firstinspires.ftc.teamcode.brainstem.follower.PedroFollowerAdapter;
-import org.firstinspires.ftc.teamcode.brainstem.subsystems.Blocker;
+import org.firstinspires.ftc.teamcode.brainstem.follower.PathFollowers;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Drive;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Intake;
-import org.firstinspires.ftc.teamcode.brainstem.subsystems.IntakeBeamBreak;
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.Limelight;
-import org.firstinspires.ftc.teamcode.brainstem.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.brainstem.utils.BatteryVoltageFilter;
+import org.firstinspires.ftc.teamcode.brainstem.vision.VisionSubsystem;
+import org.firstinspires.ftc.teamcode.brainstem.vision.pipelines.LimelightPipeline;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-// the big robot class. hardware + pinpoint + pedro + subsystems
-// make one of these in ur opmode, call update() every loop
 public class BrainSTEMRobot {
     public final OpMode opMode;
     public final Telemetry telemetry;
@@ -39,11 +36,12 @@ public class BrainSTEMRobot {
     public final PedroBrainSTEMBridge pedro;
 
     public final Intake intake;
-    public final Transfer transfer;
+
     public final FourBarLinkage lift;
-    public final Blocker blocker;
+
+    public final VisionSubsystem vision;
+
     public final Limelight limelight;
-    public final IntakeBeamBreak intakeGate;
     public final Drive drive;
 
     public boolean red;
@@ -73,18 +71,17 @@ public class BrainSTEMRobot {
         batteryFilter = new BatteryVoltageFilter(hardwareMap);
 
         intake = new Intake(hardwareMap, telemetry);
-        transfer = new Transfer(hardwareMap, telemetry);
+
         lift = new FourBarLinkage(hardwareMap, telemetry);
-        blocker = new Blocker(hardwareMap, telemetry);
-        limelight = new Limelight(hardwareMap, telemetry);
-        intakeGate = new IntakeBeamBreak(hardwareMap, telemetry);
+
+        vision = new VisionSubsystem(new LimelightPipeline(hardwareMap));
+        vision.start();
+        limelight = new Limelight(vision, telemetry);
+
         drive = new Drive(hardwareMap, configuration);
         addSubsystem(intake);
-        addSubsystem(transfer);
         addSubsystem(lift);
-        addSubsystem(blocker);
         addSubsystem(limelight);
-        addSubsystem(intakeGate);
     }
 
     public void addSubsystem(Component component) {
@@ -101,12 +98,10 @@ public class BrainSTEMRobot {
         this.red = red;
     }
 
-    /** Classic Pedro follower behind the portable {@link PathFollower} contract. */
     public PathFollower createPathFollower() {
-        return new PedroFollowerAdapter(follower, robotModel);
+        return PathFollowers.pedro(follower, robotModel);
     }
 
-    /** Field pose {@code {x, y, headingDeg}} in {@link RoadRunnerCoordinates} / FieldCoords. */
     public double[] getFieldPose() {
         Pose field = pinpoint.getPose().getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
         return new double[]{
@@ -116,14 +111,12 @@ public class BrainSTEMRobot {
         };
     }
 
-    // set match start as {x, y, headingDeg} in FieldCoords (0°=+Y into field, CCW+).
-    // skip on simple drive-forward tests if you want raw pedro (0,0,0).
     public void setStartPose(double[] startPose) {
         Pose pose = Pose.fromFieldDegrees(
                 startPose[0],
                 startPose[1],
                 startPose.length >= 3 ? startPose[2] : 0);
-        // hard reset — Pinpoint.setStartPose() rebases and can corrupt XY if called twice
+
         pinpoint.resetPose(pose);
         pedroPoseFeed.setStartPose(pose);
         follower.setStartingPose(pose);
@@ -133,7 +126,6 @@ public class BrainSTEMRobot {
         }
     }
 
-    // one loop: pinpoint → pedro → subsystems
     public void update() {
         pinpoint.update();
         syncPinpointIntoPedro();
@@ -156,6 +148,14 @@ public class BrainSTEMRobot {
         for (Component component : subsystems) {
             component.reset();
         }
+    }
+
+    public void stopVision() {
+        vision.stop();
+    }
+
+    public double getBatteryVoltage() {
+        return batteryFilter.getVoltage();
     }
 
     private void syncPinpointIntoPedro() {

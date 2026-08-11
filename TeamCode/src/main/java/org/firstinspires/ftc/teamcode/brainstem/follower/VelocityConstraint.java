@@ -2,24 +2,19 @@ package org.firstinspires.ftc.teamcode.brainstem.follower;
 
 import org.firstinspires.ftc.teamcode.brainstem.RobotModel;
 
-/**
- * Library-neutral velocity ceiling from robot physics + path geometry.
- * Not a trajectory generator — only answers "how fast is safe here?".
- */
 public final class VelocityConstraint {
 
     public enum LimitReason {
-        /** Straight (κ≈0) or curvature allows full robot speed. */
+
         ROBOT_TOP_SPEED,
-        /** Limited by a_lat = v²κ → v = √(a_lat_max / |κ|). */
+
         CURVATURE,
-        /** Limited by PathSpec.Segment.maxVelocity &gt; 0. */
+
         SEGMENT_CAP,
-        /** Idle / no model. */
+
         NONE
     }
 
-    /** Result of a velocity query. */
     public static final class Result {
         public final double maxVelocity;
         public final LimitReason reason;
@@ -48,11 +43,6 @@ public final class VelocityConstraint {
 
     private VelocityConstraint() {}
 
-    /**
-     * @param curvature            signed path curvature (1/in); 0 = straight
-     * @param model                RobotModel (single source of truth)
-     * @param segmentMaxVelocity   PathSpec segment cap; {@code 0} = uncapped (dynamic only)
-     */
     public static Result getMaxVelocity(
             double curvature, RobotModel model, double segmentMaxVelocity) {
         if (model == null) {
@@ -84,7 +74,6 @@ public final class VelocityConstraint {
         return new Result(v, reason, curvature, robotTop, curvLimit, segmentCap);
     }
 
-    /** Convenience when there is no segment cap. */
     public static double getMaxVelocity(double curvature, RobotModel model) {
         return getMaxVelocity(curvature, model, 0).maxVelocity;
     }

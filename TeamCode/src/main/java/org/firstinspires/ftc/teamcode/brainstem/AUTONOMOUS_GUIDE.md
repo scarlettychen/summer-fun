@@ -7,6 +7,7 @@ Everything your team normally edits is under this `brainstem` folder:
 - `BrainSTEMRobot.java` — hardware fields, Pinpoint ownership, pose sync, robot loop
 - `subsystems/` — subsystem implementations
 - `follower/` — portable PathSpec / PathFollower (classic Pedro behind adapter)
+- `auto/CommandAutoOpMode.java` — base class for match autos (init/run/cleanup loop)
 - `auto/*OpMode.java` — FTC lifecycle
 
 Pedro Pathing follows paths with model feedforward + light PID correction. Ivy is TeamCode-only for mechanisms.
@@ -68,329 +69,151 @@ public final class Shooter implements Component {
 ```
 
 3. Add a public field in `BrainSTEMRobot`, construct it, and call `addSubsystem(shooter)`.
-4. Add named commands in `RobotActions`:
+4. Add helpers in `OpmodeCommands` (or call the subsystem from an Ivy `Commands.instant`).
 
 ```java
-public Command shooterOnClose() {
-    return run(() -> robot.shooter.shootClose());
-}
-
-public Command waitForShooter() {
-    return waitUntil(() -> robot.shooter.atSpeed());
-}
-
-public Command shooterOnAndReady() {
-    return runThenWait(
-            () -> robot.shooter.shootClose(),
-            () -> robot.shooter.atSpeed()
-    );
+public static Command shooterOnClose(Shooter shooter) {
+    return Commands.instant(shooter::shootClose).requiring(shooter);
 }
 ```
 
-`run(...)` changes mechanism state once; it does not keep calling the method and does not
-turn the mechanism off. Stop mechanisms explicitly in another command and in OpMode/robot stop.
+One-shot commands change state once; they do not keep calling the method and do not
+auto-stop. Stop mechanisms explicitly in another command and when the OpMode ends.
 
-## 3. Add coordinates
+## 3. Coordinates
 
-Pose arrays always use `{xInches, yInches, headingDegrees}`:
+Pose arrays are `{xInches, yInches, headingDegrees}` in {@link FieldCoords}:
+center origin, walls ±72, **0° = +Y** (into the field), CCW+.
 
 ```java
-public double[] score = xyz(-39, -39, -137);
-public double[] pickup = xyz(-12, -58, -90);
+double[] score = FieldCoords.xyz(-39, -39, -137);
+double[] pickup = FieldCoords.xyz(-12, -58, -90);
 ```
 
-Add every new named field to `auto/poses/RobotPoses`, then fill it in for Blue/Red subclasses.
-Blue and Red tables can be independent.
-Use `PoseConverter.useFTCCoordinates()` (already called by `PedroGuide`) so arrays are interpreted
-in FTC field coordinates.
+Keep poses as `public static double[]` fields on the auto (see `RedLineScoreAuto`).
+For Blue/Red variants, either mirror Y in code (`FieldCoords.xyz(x, -y, ...)`) or make
+two small autos that both extend the same `CommandAutoOpMode` subclass with `isRed()` flipped.
 
-Waypoints and markers are different:
+## 4. Drive (the simple API)
 
-- waypoints are field poses that shape `pathDrive(...)` geometry
-- markers are callbacks fired once at a path completion fraction from 0 to 1
-- with time-optimal following, marker completion spans the whole path-chain arc length
+You need three things:
 
-## 4. Add named drive commands
+1. `PathFollower drive = robot.createPathFollower()`
+2. A `PathSpec` (hand-built or loaded JSON)
+3. `OpmodeCommands.followPath(drive, spec)` — or the shortcuts below
 
-Add these to `RobotActions`. Autos should call the names, not raw coordinates.
+### Build a path
 
 ```java
-public Command driveToScore() {
-    return lineDrive(() -> {
-        precision();
-        return poses().close1Shooting;
-    });
-}
+// one line — keep current heading
+PathSpec.to(here, goal, PathSpec.HeadingMode.HOLD_START)
 
-public Command collectCycle() {
-    return pathDrive(
-            () -> {
-                loaded();
-                return poses().collect1Pre;
-            },
-            () -> poses().firstSpikeEnd
-    );
-}
+// one line — rotate to goal heading
+PathSpec.to(here, goal, PathSpec.HeadingMode.HOLD)
+
+// line-chain through poses
+PathSpec.through("cycle", start, pickup, score)
+
+// bezier
+PathSpec.curve("arc", PathSpec.HeadingMode.TANGENT, null, a, b, c, d)
+
+// robot-relative
+PathSpec.forward(here, 24)
+PathSpec.strafe(here, 12)   // +left
+
+// speed cap (0 = dynamic VelocityConstraint)
+PathSpec.through("slow", start, goal).maxVelocity(20)
 ```
 
-The `Supplier<double[]>` lambdas are deferred until command initialization. Therefore alliance
-selection happens before coordinates are read.
-
-### Drive builders available inside `RobotActions`
-
-- `lineDrive(double[] pose, Marker...)`
-- `lineDrive(x, y, headingDegrees, Marker...)`
-- `lineDrive(Supplier<double[]> pose, Marker...)` — preferred for alliance poses
-- `bezierDrive(double[]... poses)` — curved path through control/end poses
-- `bezierDrive(Pose... poses)`
-- `bezierDrive(Supplier<double[]>... poses)` — deferred/alliance-safe
-- `pathDrive(double[]... waypoints)` — line-chain through poses
-- `pathDrive(Marker[], double[]... waypoints)`
-- `pathDrive(Supplier<double[]>... waypoints)` — preferred for alliance poses
-- `pathDrive(Marker[], Supplier<double[]>... waypoints)`
-- `turnTo(headingDegrees)`
-
-### Motion contexts
-
-Call these while resolving a named drive:
-
-- `cruise()` — full speed
-- `loaded()` — carrying game elements
-- `precision()` — slower scoring/alignment
-
-They change scaling in the TeamCode `RobotModel`.
-
-## 5. Command helpers
-
-Available inside `RobotActions`:
-
-- `run(Runnable)` — one-shot state change
-- `waitSeconds(seconds)` — wall-clock delay
-- `waitUntil(BooleanSupplier)` — finishes when condition is true
-- `runThenWait(start, finished)` — run once, then wait until ready
-- `sequence(Command...)` — commands one after another
-- `parallel(Command...)` — all together; finishes when <em>all</em> finish
-- `driveWith(drive, alongside...)` — path + other actions together; finishes when the
-  <em>path</em> finishes (mechanisms can run during the drive without blocking it)
-- `alongWith(...)` — alias for `parallel`
-- `conditional(condition, onTrue, onFalse)` — branch once at initialize
-- `retry(supplier, success, maxAttempts)` — fresh command per attempt until success
-- `validate(condition, onSuccess, onFailure)` — validation branch with PASS/FAILED log
-- `waitUntilValidated(condition, timeoutSeconds)` — wait or TIMEOUT, then continue
-
-Low-level `FunctionalCommand` helpers are also available:
-
-- `Commands.instant(action)`
-- `ControlFlow.waitSeconds(seconds)`
-- `Commands.waitUntil / Command.build()`
-- constructor `(onInit, onExecute, finished, onEnd)`
-
-### High-level resilient actions (use these in match autos)
-
-Prefer named helpers over raw `retry` / `validate` trees. Recovery stays **local** to the
-action that can fail; attempt counts and timeouts are fixed so behavior stays deterministic.
-
-| Helper | Behavior |
-|--------|----------|
-| `tryCollect()` | `retry(() -> collect(), hasGamePiece, 2)` |
-| `tryScore()` | `validate(hasGamePiece, score(), recoverIntake())` |
-| `safeAlign()` | `retry(() -> align(), isAligned, 2)` |
-| `recoverLocalization()` | brief settle + validate Pinpoint is still usable |
-
-Wire sensor stubs on `RobotActions`: `hasGamePiece()`, `isShooterAtSpeed()`, `isAligned()`,
-`isLocalizationReasonable()`.
-
-## 5b. Auton composition examples
-
-### 1) Normal deterministic auton (no branching)
+### Follow it (Ivy)
 
 ```java
-@Override
-public void run() {
-    run(sequence(
-            parallel(bot.shooterTurnOnClose(), bot.driveToGoal()),
-            bot.waitSeconds(0.2),
-            bot.moveSpindexer360(),
-            bot.collectFirstSpike(),
-            bot.driveToGoal()
-    ));
-}
+OpmodeCommands.followPath(drive, path)
+
+// shortcuts (bake from live pose when the command starts):
+OpmodeCommands.lineTo(drive, GOAL)     // keep heading
+OpmodeCommands.driveTo(drive, GOAL)    // apply GOAL heading
+OpmodeCommands.driveForward(drive, 24)
+OpmodeCommands.strafeLeft(drive, 12)
 ```
 
-Fixed order, fixed poses — same path every run.
-
-### 2) Retrying a failed intake
+### Load from a planner UI
 
 ```java
-@Override
-public void run() {
-    run(sequence(
-            bot.driveOffLine(),
-            bot.tryCollect(),          // up to 2 collect attempts until hasGamePiece
-            bot.driveToGoal(),
-            bot.tryScore()
-    ));
-}
+PathSpec path = PathSpec.fromRaw(resources, R.raw.my_path);
+// or hot-reload: PathSpec.fromFile("my_path.json")  // /sdcard/FIRST/paths/
+OpmodeCommands.followPath(drive, path);
 ```
 
-`tryCollect()` owns its own recovery budget. The rest of the auton does not grow a decision tree.
+Export contract: `docs/PATH_PLANNER_INTEGRATION.md`.
 
-Equivalent explicit form (prefer the helper in match code):
+### Motion scales
 
-```java
-bot.retry(() -> bot.collect(), bot::hasGamePiece, 2);
-```
+On `robot.robotModel`: `cruise()`, `loaded()`, `precision()` — call before a drive if you want slower/faster cruise for that section.
 
-### 3) Validating a scoring action
+## 5. Mechanism commands
 
-```java
-@Override
-public void run() {
-    run(sequence(
-            bot.tryCollect(),
-            bot.safeAlign(),
-            bot.tryScore()   // requires piece; waits for shooter speed inside score()
-    ));
-}
-```
+Use `OpmodeCommands` for intake / lift (see that class).
+Compose with Ivy:
 
-Inside `tryScore()` / `score()`:
+- `Commands.instant(...)`
+- `Commands.waitUntil(...)`
+- `Groups.sequential` / `parallel` / `race`
 
-- no piece → local `recoverIntake()` (not a global “mode”)
-- piece present → drive to shoot, `waitUntilValidated(isShooterAtSpeed, 1.5)`, fire only on PASS
+## 6. Match OpMode skeleton
 
-Logs look like:
-
-```text
-Validation:
-    PASS
-```
-
-or `FAILED` / `TIMEOUT`.
-## 6. Write an OpMode auton (Ivy)
-
-Keep sequencing in the OpMode. No AutoMode class — fewer files to sift when something breaks.
+Extend `CommandAutoOpMode` — it owns robot/follower construction, the init-pose
+telemetry loop, the `Scheduler` run loop, and shutdown (motors + vision). You only
+provide alliance, an optional start pose, and the command tree:
 
 ```java
 @Autonomous(name = "My Auto")
-public class MyAutoOpMode extends LinearOpMode {
+public class MyAutoOpMode extends CommandAutoOpMode {
+    public static double[] START = FieldCoords.xyz(-24, -63, 0);
+    public static double[] GOAL = FieldCoords.xyz(-20, 20, 0);
+
     @Override
-    public void runOpMode() {
-        BrainSTEMRobot robot = new BrainSTEMRobot(hardwareMap, telemetry, this);
-        RobotActions bot = new RobotActions(robot);
-        bot.getDrive().setExternalLoop(true);
+    protected boolean isRed() {
+        return true;
+    }
 
-        // alliance select during init...
-        waitForStart();
-        if (isStopRequested()) return;
+    @Override
+    protected double[] startPose() {
+        return START;
+    }
 
-        robot.setStartPose(bot.poses().start);
-        Command root = bot.sequence(
-                bot.driveToGoal(),
-                bot.waitSeconds(0.2) // use ControlFlow.waitSeconds via a helper if needed
+    @Override
+    protected Command buildAuto() {
+        return Groups.sequential(
+                OpmodeCommands.lineTo(drive, GOAL),
+                OpmodeCommands.strafeLeft(drive, 1.5)
         );
-        // Prefer:
-        // Command root = sequential(bot.driveToGoal(), waitMs(200));
+    }
 
-        Scheduler.reset();
-        Scheduler.schedule(root);
-        while (opModeIsActive() && Scheduler.isScheduled(root)) {
-            robot.update();
-            Scheduler.execute();
-            telemetry.update();
-        }
-        Scheduler.cancel(root);
-        Scheduler.reset();
-        robot.follower.breakFollowing();
+    @Override
+    protected void addRunTelemetry() {
+        telemetry.addData("field", FieldCoords.format(robot.getFieldPose()));
+        telemetry.addData("busy", drive.isBusy());
     }
 }
 ```
 
-Named actions live in `RobotActions`. Composition helpers live in `ControlFlow` or Ivy
-`Groups` / `Commands`. Pedro only supplies `PedroDrive` path commands.
+`robot` and `drive` are protected fields set up before `buildAuto()` runs. See
+`RedLineScoreAuto` for a full example (parallel groups, ball collection, telemetry).
 
-## 7. Own the auton from an OpMode
+Only reach for a raw `LinearOpMode` if an auto genuinely doesn't fit the
+build→run→cleanup shape (e.g. `DriveForwardOpMode`, which drives the raw
+`PathFollower` for a SysId-style demo).
 
-```java
-BrainSTEMRobot robot = new BrainSTEMRobot(hardwareMap, telemetry, this);
-RobotActions actions = new RobotActions(robot);
-actions.setAlliance(isRed);
+## 7. BrainSTEMRobot
 
-MyAuto auto = new MyAuto(robot, actions);
-auto.setAlliance(isRed);
-auto.setExternalLoop(true);
+- `createPathFollower()` → `PathFollower`
+- `setStartPose({x,y,headingDeg})` — absolute Pinpoint stamp (do not call `pinpoint.setStartPose` repeatedly)
+- `setAlliance(red)` / `update()` / `reset()`
 
-// Useful during INIT so telemetry/localization starts at this auto's own pose.
-robot.setStartPose(auto.getStartPose());
+## 8. Safety
 
-waitForStart();
-auto.start();
-
-while (opModeIsActive() && !auto.isFinished()) {
-    // Pinpoint is already read inside robot.update().
-    // Only call robot.syncPose(...) if another localizer (e.g. RR) owns pose instead.
-    robot.update();
-    auto.update();
-    telemetry.update();
-}
-
-auto.stop();
-```
-
-When an external localizer owns pose, initialize/reset that localizer to the same
-`auto.getStartPose()` before the loop.
-
-## 8. Schedule one command directly
-
-```java
-Command move = drive.forwardDrive(48);
-Scheduler.reset();
-Scheduler.schedule(move);
-while (opModeIsActive() && Scheduler.isScheduled(move)) {
-    robot.update();
-    Scheduler.execute();
-}
-Scheduler.cancel(move);
-Scheduler.reset();
-robot.follower.breakFollowing();
-```
-
-Ivy: `Scheduler.schedule` / `execute` / `cancel` / `reset` / `isScheduled`.
-Compositions: `Groups.sequential`, `parallel`, `deadline`, or `ControlFlow.*`.
-
-## 9. BrainSTEMRobot functions
-
-- constructor `(hardwareMap, telemetry, opMode)` — one only; starts at field origin
-- `setStartPose(double[])` — match autos only (`{x,y,headingDegrees}`)
-- `setAlliance(red)`
-- `addSubsystem(Component)` / `getSubsystems()`
-- `update()` / `reset()`
-
-## 10. PedroDrive low-level functions
-
-Normally wrap these in `RobotActions`. They remain useful when creating a new named action:
-
-- `getFollower()`, `getPose()`, `isBusy()`, `update()`, `pathCompletion()`
-- `holdEnd(boolean)` — classic Pedro hold-at-end
-- `setExternalLoop(boolean)`
-- `setStartPose(x,y,headingDegrees)` / `setStartPose(double[])`
-- `lineDrive(...)`, `bezierDrive(...)`, `pathDrive(...)`, `turnTo(...)`
-
-Prefer `brainstem/follower/PathSpec` + `PathFollower` for all autos (via `OpmodeCommands`).
-UI planners should emit PathSpec JSON (`PathSpec.fromJson` / `toJson`).
-
-Paths are baked in command `initialize()`, not while the OpMode constructs the sequence. The
-start is the follower's current pose at that moment; destinations are absolute field positions.
-
-## 11. Safety rules
-
-- Do not command Pedro Mecanum and Road Runner MecanumDrive at the same time.
-- Always have correct motor names/directions and a working pose source.
-- Explicitly stop subsystem motors; one-shot commands do not auto-stop them.
-- Always cancel/stop and call `breakFollowing()` when an OpMode ends early.
-- Tune `RobotModel` kS/kV/kA (used by `PedroFollowerAdapter`) before heavy classic PID retuning.
-- Match autos: call `tryCollect` / `tryScore` / `safeAlign` / `recoverLocalization`, not raw
-  `retry`/`validate` trees. Keep recovery inside the failing action.
-- Use `robot.setStartPose(double[])` for absolute Pinpoint stamps (not repeated
-  `pinpoint.setStartPose`, which rebases and corrupts XY).
-- Fixed retry counts and timeouts keep resilient actions deterministic.
+- Do not command Pedro Mecanum and another drivetrain at the same time.
+- Cancel the follower and zero motors when an OpMode ends early.
+- Tune `RobotModel` (kS/kV/kA, accel limits) before heavy Pedro PID retuning.
+- Dynamic speed limits: `docs/DYNAMIC_VELOCITY.md`.

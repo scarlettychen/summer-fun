@@ -7,22 +7,10 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 
-/**
- * RobotModel SysId — friction coefficient (sets {@code maxLateralAcceleration = μ·g}).
- * <p>
- * Two quick tests (use A to reset between them):
- * <ol>
- *   <li><b>Strafe</b> — slam stick full LEFT or RIGHT on carpet until it chatters/slips.
- *       Peak |lateral accel| / g → μ</li>
- *   <li><b>Coast</b> (optional check) — drive full forward, then hit Y to coast (float).
- *       Coast |decel| / g → rolling μ (usually lower than strafe)</li>
- * </ol>
- * Prefer the <b>strafe</b> number for {@code frictionCoefficient(...)} — that matches curve FF.
- */
 @TeleOp(name = "SysId Friction μ", group = "SysId")
 public class SysIdFrictionOpMode extends LinearOpMode {
 
-    private static final double G = 386.09; // in/s^2
+    private static final double G = 386.09;
     private static final double FULL_STICK = 0.85;
     private static final double MIN_DT = 0.008;
 
@@ -51,8 +39,8 @@ public class SysIdFrictionOpMode extends LinearOpMode {
         boolean haveSample = false;
         boolean coasting = false;
 
-        double peakLatAccel = 0;   // |a| sideways, robot frame
-        double peakCoastDecel = 0; // |a| while coasting
+        double peakLatAccel = 0;
+        double peakCoastDecel = 0;
 
         while (opModeIsActive()) {
             robot.update();
@@ -70,7 +58,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
                 robot.drive.setMotorPowers(0, 0, 0, 0);
             }
             if (gamepad1.y) {
-                // coast stop for rolling-friction check
+
                 coasting = true;
                 setBrake(robot, false);
                 robot.drive.setMotorPowers(0, 0, 0, 0);
@@ -82,7 +70,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
 
             if (!coasting) {
                 setBrake(robot, true);
-                driveMecanum(robot, y, x, rx);
+                robot.drive.driveArcade(y, x, rx);
             } else {
                 robot.drive.setMotorPowers(0, 0, 0, 0);
                 double speed = Math.hypot(
@@ -97,7 +85,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
             double heading = robot.pinpoint.getPose().getHeading();
             double fieldVx = robot.pinpoint.getVelocity().getX();
             double fieldVy = robot.pinpoint.getVelocity().getY();
-            // robot-frame: forward / strafe
+
             double cos = Math.cos(heading);
             double sin = Math.sin(heading);
             double robotForward = fieldVx * cos + fieldVy * sin;
@@ -108,7 +96,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
             if (haveSample && dt >= MIN_DT) {
                 double ax = (fieldVx - lastVx) / dt;
                 double ay = (fieldVy - lastVy) / dt;
-                // lateral accel ≈ change in robot-strafe velocity
+
                 double lastStrafe = -lastVx * sin + lastVy * cos;
                 double aLat = (robotStrafe - lastStrafe) / dt;
                 double aMag = Math.hypot(ax, ay);
@@ -118,7 +106,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
                     peakLatAccel = Math.max(peakLatAccel, Math.abs(aLat));
                 }
                 if (coasting && aMag > 0.5) {
-                    // while slowing, accel is opposite velocity
+
                     double speed = Math.hypot(fieldVx, fieldVy);
                     if (speed > 4.0) {
                         peakCoastDecel = Math.max(peakCoastDecel, aMag);
@@ -137,7 +125,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
 
             double muStrafe = peakLatAccel / G;
             double muCoast = peakCoastDecel / G;
-            // slight derate for safety in model
+
             double suggestedMu = muStrafe > 0.05 ? muStrafe * 0.85 : 0;
 
             telemetry.addLine("--- live ---");
@@ -158,8 +146,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
     }
 
     private static void setBrake(BrainSTEMRobot robot, boolean brake) {
-        // Drive motors aren't exposed; coast via zero power + BRAKE is default.
-        // For true coast we need FLOAT — remap briefly through hardwareMap names from config.
+
         DcMotor.ZeroPowerBehavior behavior =
                 brake ? DcMotor.ZeroPowerBehavior.BRAKE : DcMotor.ZeroPowerBehavior.FLOAT;
         try {
@@ -168,22 +155,7 @@ public class SysIdFrictionOpMode extends LinearOpMode {
             robot.hardwareMap.get(DcMotor.class, "BL").setZeroPowerBehavior(behavior);
             robot.hardwareMap.get(DcMotor.class, "BR").setZeroPowerBehavior(behavior);
         } catch (Exception ignored) {
-            // names always FL/FR/BL/BR in RobotConfiguration
-        }
-    }
 
-    private static void driveMecanum(BrainSTEMRobot robot, double y, double x, double rx) {
-        double fl = y + x + rx;
-        double fr = y - x - rx;
-        double bl = y - x + rx;
-        double br = y + x - rx;
-        double max = Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br)));
-        if (max > 1.0) {
-            fl /= max;
-            fr /= max;
-            bl /= max;
-            br /= max;
         }
-        robot.drive.setMotorPowers(fl, fr, bl, br);
     }
 }

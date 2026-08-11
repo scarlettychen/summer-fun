@@ -9,8 +9,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 import org.firstinspires.ftc.teamcode.brainstem.RoadRunnerCoordinates;
 
-// localization check — pedro pinpoint, rr field (0° = +Y into field, CCW+)
-// set start heading 0, face into +Y, drive forward: y should rise, x should stay ~flat
 @Configurable
 @TeleOp(name = "Localization Test", group = "Test")
 public class LocalizationTest extends LinearOpMode {
@@ -43,26 +41,8 @@ public class LocalizationTest extends LinearOpMode {
         while (opModeIsActive()) {
             robot.update();
 
-            double y = -gamepad1.left_stick_y * 0.99;
-            double x = gamepad1.left_stick_x * 0.99;
-            double rx = gamepad1.right_stick_x * 0.75;
-
-            double fl = y + x + rx;
-            double fr = y - x - rx;
-            double bl = y - x + rx;
-            double br = y + x - rx;
-
-            double max = Math.max(
-                    Math.max(Math.abs(fl), Math.abs(fr)),
-                    Math.max(Math.abs(bl), Math.abs(br)));
-            if (max > 1.0) {
-                fl /= max;
-                fr /= max;
-                bl /= max;
-                br /= max;
-            }
-
-            robot.drive.setMotorPowers(fl, fr, bl, br);
+            robot.drive.driveFromSticks(
+                    gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
 
             Pose pedro = robot.pinpoint.getPose();
             Pose field = pedro.getAsCoordinateSystem(RoadRunnerCoordinates.INSTANCE);

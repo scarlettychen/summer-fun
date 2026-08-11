@@ -2,8 +2,6 @@ package org.firstinspires.ftc.teamcode.brainstem;
 
 import com.pedropathing.model.MotionModel;
 
-// drivetrain physics — PRIMARY path-following tuning (kS/kV/kA, mass, accel limits).
-// Pedro PID in RobotConfiguration is correction-only; leave it alone for normal autos.
 public class RobotModel implements MotionModel {
     public double mass = 12.0;
     public double wheelRadius = 1.8898;
@@ -24,11 +22,6 @@ public class RobotModel implements MotionModel {
     public double kA = 0.002;
     public double motorEfficiency = 0.85;
 
-    /**
-     * Per-tick path velocity ceiling (in/s) set by PathFollower adapter from
-     * {@link org.firstinspires.ftc.teamcode.brainstem.follower.VelocityConstraint}.
-     * Not a tunable constant — transient. {@link Double#POSITIVE_INFINITY} = no extra cap.
-     */
     private double pathVelocityCeiling = Double.POSITIVE_INFINITY;
 
     public enum MotionMode {
@@ -56,15 +49,10 @@ public class RobotModel implements MotionModel {
         maxLateralAcceleration = frictionCoefficient * gravity;
     }
 
-    /**
-     * Read-only view of motion limits — single source of truth is this model’s fields.
-     * Does not copy values; always reflects live state.
-     */
     public MotionConstraints constraints() {
         return new MotionConstraints(this);
     }
 
-    /** Called by PathFollower adapters each tick; not for manual tuning. */
     public void setPathVelocityCeiling(double inchesPerSecond) {
         if (Double.isNaN(inchesPerSecond) || inchesPerSecond <= 0) {
             pathVelocityCeiling = Double.POSITIVE_INFINITY;
@@ -101,7 +89,6 @@ public class RobotModel implements MotionModel {
         return motionMode.velocityScale * confidence;
     }
 
-    /** Robot capability without the transient path ceiling (for VelocityConstraint). */
     public double motorLimitedVelocityIgnoringPathCeiling() {
         double base;
         if (maxVelocityOverride > 0) {
@@ -224,10 +211,6 @@ public class RobotModel implements MotionModel {
         return Math.max(low, Math.min(high, value));
     }
 
-    /**
-     * Live view of motion limits. Values are read from the owning {@link RobotModel}
-     * — do not store a parallel copy of limits elsewhere.
-     */
     public static final class MotionConstraints {
         private final RobotModel model;
 

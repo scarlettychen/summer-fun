@@ -7,7 +7,6 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.localization.ExternalPoseLocalizer;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-// wires up pedro follower + pose bridge for brainstemrobot
 public final class PedroGuide {
     private PedroGuide() {}
 
@@ -16,7 +15,7 @@ public final class PedroGuide {
             RobotConfiguration configuration,
             RobotModel robotModel
     ) {
-        // team field: 0° = +Y (into field), CCW+ (RoadRunnerCoordinates)
+
         PoseConverter.setFieldCoordinateSystem(RoadRunnerCoordinates.INSTANCE);
         ExternalPoseLocalizer poseFeed = new ExternalPoseLocalizer();
         poseFeed.setStartPose(Pose.fromField(0, 0, 0));

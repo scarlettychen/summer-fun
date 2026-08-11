@@ -28,15 +28,14 @@ public class DriveForwardOpMode extends LinearOpMode {
 
         robot.update();
         double[] bakeStart = robot.getFieldPose();
-        pathFollower.startPath(PathSpec.forward("drive-forward", bakeStart, DISTANCE_INCHES));
+        pathFollower.startPath(PathSpec.forward(bakeStart, DISTANCE_INCHES));
 
         while (opModeIsActive() && !pathFollower.isFinished()) {
             robot.update();
-            double[] field = robot.getFieldPose();
-            FollowerOutput out = pathFollower.update(field[0], field[1], field[2]);
+            FollowerOutput out = pathFollower.update();
 
             telemetry.addData("bake start", FieldCoords.format(bakeStart));
-            telemetry.addData("field", FieldCoords.format(field));
+            telemetry.addData("field", FieldCoords.format(robot.getFieldPose()));
             telemetry.addData("pathDone", "%.2f", out.pathCompletion);
             telemetry.addData("crossTrack", "%.2f", out.crossTrackError);
             telemetry.addData("finished", pathFollower.isFinished());

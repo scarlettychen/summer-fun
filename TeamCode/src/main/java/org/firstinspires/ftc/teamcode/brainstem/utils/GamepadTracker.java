@@ -30,7 +30,6 @@ public class GamepadTracker {
         if (gamepad == null)
             return;
 
-        // bump frame counts while held
         updateButtonFrame(gamepad.a, () -> aFrameCount, (c) -> aFrameCount = c);
         updateButtonFrame(gamepad.b, () -> bFrameCount, (c) -> bFrameCount = c);
         updateButtonFrame(gamepad.x, () -> xFrameCount, (c) -> xFrameCount = c);
@@ -47,7 +46,6 @@ public class GamepadTracker {
         updateButtonFrame(gamepad.start, () -> startButtonFrameCount, (c) -> startButtonFrameCount = c);
         updateButtonFrame(gamepad.back, () -> backButtonFrameCount, (c) -> backButtonFrameCount = c);
 
-        // triggers count as pressed past 0.3
         updateButtonFrame(gamepad.left_trigger > 0.3, () -> leftTriggerFrameCount, (c) -> leftTriggerFrameCount = c);
         updateButtonFrame(gamepad.right_trigger > 0.3, () -> rightTriggerFrameCount, (c) -> rightTriggerFrameCount = c);
     }
@@ -60,7 +58,6 @@ public class GamepadTracker {
         }
     }
 
-    // true only on the first frame of a press
     public boolean isFirstA() { return aFrameCount == 1; }
     public boolean isFirstB() { return bFrameCount == 1; }
     public boolean isFirstX() { return xFrameCount == 1; }

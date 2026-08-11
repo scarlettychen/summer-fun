@@ -17,7 +17,6 @@ public class FourBarLinkage implements Component {
 
     public static double TESTING_POWER = 0.3;
 
-    // flip if pid says "up" but the arm goes down
     public static int MOTOR_SIGN = 1;
 
     public static int HIGH_POS = 510;
@@ -145,7 +144,7 @@ public class FourBarLinkage implements Component {
     public void goToTarget(int current) {
         double fb = pid.calculate(current, targetPosition);
         double err = targetPosition - current;
-        // kG holds against gravity toward higher encoder; kS helps along motion
+
         double ff = kG + kS * Math.signum(err);
         setPower(fb + ff);
     }
@@ -174,6 +173,10 @@ public class FourBarLinkage implements Component {
 
     public int getPosition() {
         return right.getCurrentPosition();
+    }
+
+    public double getTargetPosition() {
+        return desiredTarget();
     }
 
     public int getRightPosition() {

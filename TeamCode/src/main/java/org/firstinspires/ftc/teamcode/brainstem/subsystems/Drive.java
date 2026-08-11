@@ -7,8 +7,11 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.brainstem.RobotConfiguration;
 
-// raw mecanum motors from robotconfig. no pedro teleop
 public class Drive {
+
+    public static final double STICK_XY_SCALE = 0.99;
+    public static final double STICK_RX_SCALE = 0.75;
+
     private final DcMotorEx FL;
     private final DcMotorEx FR;
     private final DcMotorEx BL;
@@ -45,5 +48,40 @@ public class Drive {
         FL.setPower(fl);
         BR.setPower(br);
         BL.setPower(bl);
+    }
+
+    public void driveArcade(double y, double x, double rx) {
+        double fl = y + x + rx;
+        double fr = y - x - rx;
+        double bl = y - x + rx;
+        double br = y + x - rx;
+
+        double max = Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br)));
+        if (max > 1.0) {
+            fl /= max;
+            fr /= max;
+            bl /= max;
+            br /= max;
+        }
+        setMotorPowers(fl, fr, bl, br);
+    }
+
+    public void driveFromSticks(double leftStickY, double leftStickX, double rightStickX) {
+        driveArcade(-leftStickY * STICK_XY_SCALE, leftStickX * STICK_XY_SCALE, rightStickX * STICK_RX_SCALE);
+    }
+
+    public void copyDriveLog(org.firstinspires.ftc.teamcode.brainstem.logging.LogEntry e) {
+        e.flPower = FL.getPower();
+        e.frPower = FR.getPower();
+        e.blPower = BL.getPower();
+        e.brPower = BR.getPower();
+        e.flTicks = FL.getCurrentPosition();
+        e.frTicks = FR.getCurrentPosition();
+        e.blTicks = BL.getCurrentPosition();
+        e.brTicks = BR.getCurrentPosition();
+        e.flTicksPerSec = FL.getVelocity();
+        e.frTicksPerSec = FR.getVelocity();
+        e.blTicksPerSec = BL.getVelocity();
+        e.brTicksPerSec = BR.getVelocity();
     }
 }

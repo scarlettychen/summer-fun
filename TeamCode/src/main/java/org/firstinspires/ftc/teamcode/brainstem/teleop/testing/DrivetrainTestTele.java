@@ -4,7 +4,6 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 @TeleOp(name = "Test Drivetrain Motors", group = "Test")
@@ -16,13 +15,10 @@ public class DrivetrainTestTele extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-//        MecanumConstants cfg = new RobotConfiguration().createMecanumConstants();
-
-         fl = hardwareMap.get(DcMotorEx.class, "FL");
-         fr = hardwareMap.get(DcMotorEx.class, "FR");
-         bl = hardwareMap.get(DcMotorEx.class, "BL");
-         br = hardwareMap.get(DcMotorEx.class, "BR");
-
+        fl = hardwareMap.get(DcMotorEx.class, "FL");
+        fr = hardwareMap.get(DcMotorEx.class, "FR");
+        bl = hardwareMap.get(DcMotorEx.class, "BL");
+        br = hardwareMap.get(DcMotorEx.class, "BR");
 
         fl.setDirection(DcMotorSimple.Direction.FORWARD);
         fr.setDirection(DcMotorSimple.Direction.FORWARD);
@@ -40,50 +36,23 @@ public class DrivetrainTestTele extends LinearOpMode {
         br.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         telemetry.addData("back right power", br.getPower());
-
         telemetry.update();
 
         waitForStart();
         if (isStopRequested()) return;
 
         while (opModeIsActive()) {
-//            updateD1Dr
-
-            setMotorPowers(0.3, 0.3, 0.3, 0.3);
+            setMotorPowers(POWER, POWER, POWER, POWER);
 
             telemetry.addData("FL power", fl.getPower());
             telemetry.addData("BL power", bl.getPower());
             telemetry.addData("FR power", fr.getPower());
             telemetry.addData("BR power", br.getPower());
-
             telemetry.update();
         }
-
-    }
-
-
-
-    private void updateD1Drive() {
-
-        // DRIVING ==========================================
-        double y = -gamepad1.left_stick_y * 0.99;
-        double x = gamepad1.left_stick_x * 0.99;
-        double rx = gamepad1.right_stick_x * 0.75;
-
-
-
-
-
-        setMotorPowers(
-                y + x + rx,
-                y - x - rx,
-                y - x + rx,
-                y + x - rx
-        );
     }
 
     public void setMotorPowers(double FL, double FR, double BL, double BR) {
-
         fr.setPower(FR);
         fl.setPower(FL);
         br.setPower(BR);

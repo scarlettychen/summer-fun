@@ -4,8 +4,6 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.ExternalPoseLocalizer;
 import com.pedropathing.util.Component;
 
-// pedro half of the loop — pose feed + idle follower ticks
-// opmodes own scheduling, this never starts an auton
 public class PedroBrainSTEMBridge implements Component {
     private final Follower follower;
     private final ExternalPoseLocalizer localizer;

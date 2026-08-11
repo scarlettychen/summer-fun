@@ -6,24 +6,13 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.brainstem.BrainSTEMRobot;
 
-/**
- * RobotModel SysId — top speed + accel/decel.
- * <p>
- * Clear a long straight run. Left stick = drive (same as tele).
- * <ol>
- *   <li>Slam stick full forward and hold until speed plateaus → top speed + maxAccel</li>
- *   <li>Release stick (let it brake) → maxDecel</li>
- *   <li>A = reset peaks · B = stop motors</li>
- * </ol>
- * Paste the suggested values into {@code RobotConfiguration.createRobotModel()}.
- */
 @TeleOp(name = "SysId Accel / Top Speed", group = "SysId")
 public class SysIdAccelOpMode extends LinearOpMode {
 
     private static final double FULL_STICK = 0.85;
     private static final double RELEASED = 0.15;
     private static final double MIN_DT = 0.008;
-    private static final double MIN_SPEED_FOR_DECEL = 8.0; // in/s
+    private static final double MIN_SPEED_FOR_DECEL = 8.0;
 
     @Override
     public void runOpMode() {
@@ -50,7 +39,7 @@ public class SysIdAccelOpMode extends LinearOpMode {
 
         double peakSpeed = 0;
         double peakAccel = 0;
-        double peakDecel = 0; // positive magnitude
+        double peakDecel = 0;
 
         while (opModeIsActive()) {
             robot.update();
@@ -68,7 +57,7 @@ public class SysIdAccelOpMode extends LinearOpMode {
             double y = -gamepad1.left_stick_y;
             double x = gamepad1.left_stick_x;
             double rx = gamepad1.right_stick_x * 0.75;
-            driveMecanum(robot, y, x, rx);
+            robot.drive.driveArcade(y, x, rx);
 
             double stickMag = Math.hypot(x, y);
             boolean fullThrottle = stickMag >= FULL_STICK;
@@ -86,7 +75,7 @@ public class SysIdAccelOpMode extends LinearOpMode {
                 if (fullThrottle && instantAccel > peakAccel) {
                     peakAccel = instantAccel;
                 }
-                // Decel only after a real run (was full, now released, still moving)
+
                 if (released && wasFullThrottle && speed >= MIN_SPEED_FOR_DECEL && instantAccel < 0) {
                     peakDecel = Math.max(peakDecel, -instantAccel);
                 }
@@ -125,20 +114,5 @@ public class SysIdAccelOpMode extends LinearOpMode {
         }
 
         robot.drive.setMotorPowers(0, 0, 0, 0);
-    }
-
-    private static void driveMecanum(BrainSTEMRobot robot, double y, double x, double rx) {
-        double fl = y + x + rx;
-        double fr = y - x - rx;
-        double bl = y - x + rx;
-        double br = y + x - rx;
-        double max = Math.max(Math.max(Math.abs(fl), Math.abs(fr)), Math.max(Math.abs(bl), Math.abs(br)));
-        if (max > 1.0) {
-            fl /= max;
-            fr /= max;
-            bl /= max;
-            br /= max;
-        }
-        robot.drive.setMotorPowers(fl, fr, bl, br);
     }
 }

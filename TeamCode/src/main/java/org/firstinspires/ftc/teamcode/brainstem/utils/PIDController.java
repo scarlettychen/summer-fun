@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.brainstem.utils;
 
-
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 public class PIDController {
@@ -10,8 +9,8 @@ public class PIDController {
     private double lastError = 0;
     private double lastTimestamp = 0;
 
-    private double integralMax = Double.MAX_VALUE; // anti windup so i doesnt explode
-    private double outputMax = 1.0;                // clamp power to [-1, 1] by default
+    private double integralMax = Double.MAX_VALUE;
+    private double outputMax = 1.0;
 
     private ElapsedTime timer = new ElapsedTime();
 
@@ -37,19 +36,16 @@ public class PIDController {
         this.outputMax = max;
     }
 
-    // spit out power from current → target
     public double calculate(double current, double target) {
         double error = target - current;
 
         double currentTimestamp = timer.seconds();
         double dt = currentTimestamp - lastTimestamp;
-        if (dt <= 0) dt = 1e-3; // dont divide by zero on first tick
+        if (dt <= 0) dt = 1e-3;
 
-        // i term w/ clamp so it doesnt go crazy
         integralSum += error * dt;
         integralSum = Math.max(-integralMax, Math.min(integralMax, integralSum));
 
-        // d of error (not measurement — flip if u want that vibe)
         double derivative = (error - lastError) / dt;
 
         double output = (kP * error) + (kI * integralSum) + (kD * derivative);

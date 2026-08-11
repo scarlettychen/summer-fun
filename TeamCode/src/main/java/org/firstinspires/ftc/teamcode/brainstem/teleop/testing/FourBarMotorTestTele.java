@@ -5,7 +5,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.brainstem.subsystems.FourBarLinkage;
 
-// hold a = spin lift @ testing power, watch encoder direction
 @TeleOp(name = "lift motor test", group = "Test")
 public class FourBarMotorTestTele extends LinearOpMode {
 

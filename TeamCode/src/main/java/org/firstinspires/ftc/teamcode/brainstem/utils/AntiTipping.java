@@ -1,23 +1,7 @@
 package org.firstinspires.ftc.teamcode.brainstem.utils;
 
-
 import java.util.function.DoubleSupplier;
 
-/**
- * FTC port of TechMaker Robotics' FRC "AntiTipping" library (Chief Delphi, Nov 2025).
- *
- * Original algorithm: a proportional correction on pitch/roll that kicks in once a
- * tipping threshold is crossed, outputting a corrective velocity you swap in for the
- * driver's command until the robot settles.
- *
- * FTC differences from the FRC version:
- *   - No ChassisSpeeds type, so this outputs a simple DriveCorrection(forward, strafe)
- *     in [-1, 1] that you feed into your existing mecanum power-mixing math instead of
- *     the driver's joystick values.
- *   - Added hysteresis (separate enter/exit thresholds) so the correction doesn't
- *     chatter on/off right at the boundary -- this was a known rough edge in the
- *     original design that came up in discussion of the FRC version.
- */
 public class AntiTipping {
 
     public static final class DriveCorrection {
@@ -37,37 +21,55 @@ public class AntiTipping {
 
     private double kP;
     private double enterThresholdDegrees;
-    private double exitThresholdDegrees; // hysteresis band; must be < enterThresholdDegrees
+    private double exitThresholdDegrees;
     private double maxCorrectionPower;
+    private double minCorrectionPower;
+    private double axisDeadbandDegrees = 2.0;
+
+    private double pitchOffsetDegrees;
+    private double rollOffsetDegrees;
 
     private boolean tipping = false;
     private DriveCorrection lastCorrection = DriveCorrection.NONE;
 
-    /**
-     * @param pitchDegrees        supplier for current pitch, e.g. imu::getPitch
-     * @param rollDegrees         supplier for current roll, e.g. imu::getRoll
-     * @param kP                  proportional gain applied to the tip angle
-     * @param tippingThresholdDegrees angle (deg) at which correction engages
-     * @param maxCorrectionPower  clamp on the corrective output, in motor-power units [0, 1]
-     */
     public AntiTipping(DoubleSupplier pitchDegrees, DoubleSupplier rollDegrees,
                        double kP, double tippingThresholdDegrees, double maxCorrectionPower) {
+        this(pitchDegrees, rollDegrees, kP, tippingThresholdDegrees,
+                tippingThresholdDegrees * 0.35, maxCorrectionPower, 0.35);
+    }
+
+    public AntiTipping(DoubleSupplier pitchDegrees, DoubleSupplier rollDegrees,
+                       double kP, double enterThresholdDegrees, double exitThresholdDegrees,
+                       double maxCorrectionPower, double minCorrectionPower) {
         this.pitchDegrees = pitchDegrees;
         this.rollDegrees = rollDegrees;
         this.kP = kP;
-        this.enterThresholdDegrees = tippingThresholdDegrees;
-        this.exitThresholdDegrees = tippingThresholdDegrees * 0.7; // sensible default; tune on Panels
+        this.enterThresholdDegrees = enterThresholdDegrees;
+        this.exitThresholdDegrees = Math.min(exitThresholdDegrees, enterThresholdDegrees);
         this.maxCorrectionPower = maxCorrectionPower;
+        this.minCorrectionPower = minCorrectionPower;
     }
 
-    /** Call every loop. Returns zero correction when not tipping. */
+    public void tare() {
+        pitchOffsetDegrees = pitchDegrees.getAsDouble();
+        rollOffsetDegrees = rollDegrees.getAsDouble();
+        tipping = false;
+        lastCorrection = DriveCorrection.NONE;
+    }
+
+    public void tare(double pitchDegrees, double rollDegrees) {
+        this.pitchOffsetDegrees = pitchDegrees;
+        this.rollOffsetDegrees = rollDegrees;
+        tipping = false;
+        lastCorrection = DriveCorrection.NONE;
+    }
+
     public DriveCorrection calculate() {
-        double pitch = pitchDegrees.getAsDouble();
-        double roll = rollDegrees.getAsDouble();
-        double magnitude = Math.max(Math.abs(pitch), Math.abs(roll));
+        double pitchErr = pitchDegrees.getAsDouble() - pitchOffsetDegrees;
+        double rollErr = rollDegrees.getAsDouble() - rollOffsetDegrees;
+        double magnitude = Math.max(Math.abs(pitchErr), Math.abs(rollErr));
 
         if (tipping) {
-            // Already correcting -- only release once we've dropped below the exit threshold.
             tipping = magnitude > exitThresholdDegrees;
         } else {
             tipping = magnitude > enterThresholdDegrees;
@@ -78,15 +80,23 @@ public class AntiTipping {
             return lastCorrection;
         }
 
-        // Counter-drive: nose pitched down -> drive backward to bring the front wheels
-        // down; rolled to one side -> strafe the other way. Sign depends on your IMU's
-        // mounting orientation -- verify with the robot propped up before trusting it
-        // on the ground (per TechMaker's own safety note).
-        double forwardCorrection = clamp(-kP * pitch, -maxCorrectionPower, maxCorrectionPower);
-        double strafeCorrection = clamp(-kP * roll, -maxCorrectionPower, maxCorrectionPower);
+        double forward = axisCorrection(pitchErr);
+        double strafe = axisCorrection(rollErr);
 
-        lastCorrection = new DriveCorrection(forwardCorrection, strafeCorrection);
+        lastCorrection = new DriveCorrection(forward, strafe);
         return lastCorrection;
+    }
+
+    private double axisCorrection(double angleErrorDeg) {
+        if (Math.abs(angleErrorDeg) < axisDeadbandDegrees) {
+            return 0;
+        }
+        double raw = -kP * angleErrorDeg;
+
+        if (Math.abs(raw) < minCorrectionPower) {
+            raw = Math.copySign(minCorrectionPower, raw);
+        }
+        return clamp(raw, -maxCorrectionPower, maxCorrectionPower);
     }
 
     public boolean isTipping() {
@@ -97,17 +107,33 @@ public class AntiTipping {
         return lastCorrection;
     }
 
+    public double getPitchErrorDegrees() {
+        return pitchDegrees.getAsDouble() - pitchOffsetDegrees;
+    }
+
+    public double getRollErrorDegrees() {
+        return rollDegrees.getAsDouble() - rollOffsetDegrees;
+    }
+
     public void setTippingThreshold(double enterDegrees, double exitDegrees) {
         this.enterThresholdDegrees = enterDegrees;
-        this.exitThresholdDegrees = exitDegrees;
+        this.exitThresholdDegrees = Math.min(exitDegrees, enterDegrees);
     }
 
     public void setMaxCorrectionPower(double power) {
         this.maxCorrectionPower = power;
     }
 
+    public void setMinCorrectionPower(double power) {
+        this.minCorrectionPower = Math.max(0, power);
+    }
+
     public void setKP(double kP) {
         this.kP = kP;
+    }
+
+    public void setAxisDeadbandDegrees(double degrees) {
+        this.axisDeadbandDegrees = Math.max(0, degrees);
     }
 
     private static double clamp(double value, double min, double max) {
